@@ -1,5 +1,5 @@
 // Offline support: try the network first (so updates arrive), fall back to the cached copy.
-const CACHE = 'gymlog-v7';
+const CACHE = 'gymlog-v8';
 // The app itself must cache; the machine photos are optional (the app shows line icons without them).
 const CORE = [
   './', './index.html', './styles.css', './app.js', './icons.js', './manifest.json',

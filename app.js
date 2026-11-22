@@ -524,8 +524,8 @@ const VIEWS = {
           <button class="fail-toggle" id="fail-${ex.id}" data-action="toggleFail" aria-pressed="false" aria-label="Set taken to failure">F</button>
           <div class="plates" role="group" aria-label="Add plates to the weight">
             ${PLATES.map((pl) => `<button class="plate p${String(pl).replace('.', '_')}" data-action="addPlate" data-id="${ex.id}" data-kg="${pl}" aria-label="Add ${pl} kg"><b>${pl}</b></button>`).join('')}
-            <button class="plate clear" data-action="clearKg" data-id="${ex.id}" aria-label="Clear weight">Clear</button>
-          </div>
+            </div>
+          <button class="plate-clear" data-action="clearKg" data-id="${ex.id}" aria-label="Clear weight">Clear</button>
           <div class="plate-hint">Tap plates to add them to the kg total</div>
           <button class="warm-toggle" id="warm-${ex.id}" data-action="toggleWarm" aria-pressed="false">🔥 Warm-up set</button>
           <button class="btn purple" data-action="addSet" data-id="${ex.id}">Add set ${work + 1}</button>
