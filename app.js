@@ -114,7 +114,7 @@ function cleanSession(s) {
       if (!e || typeof e !== 'object' || typeof e.name !== 'string' || !e.name.trim() || !Array.isArray(e.sets)) continue;
       const sets = e.sets
         .filter((x) => x && finite(x.kg) && x.kg >= 0 && finite(x.reps) && x.reps > 0)
-        .map((x) => ({ kg: x.kg, reps: x.reps, ...(x.warmup === true ? { warmup: true } : {}) }));
+        .map((x) => ({ kg: x.kg, reps: x.reps, ...(x.warmup === true ? { warmup: true } : {}), ...(x.failure === true ? { failure: true } : {}) }));
       if (sets.length) out.exercises.push({ name: e.name.slice(0, 120), group: typeof e.group === 'string' ? e.group.slice(0, 40) : '', sets });
     }
     return out.exercises.length ? out : null;
@@ -248,6 +248,8 @@ const isWork = (set) => !set.warmup;
 const totalSets = (s) => s.exercises.reduce((n, e) => n + e.sets.filter(isWork).length, 0);
 const warmupSets = (s) => s.exercises.reduce((n, e) => n + e.sets.filter((x) => x.warmup).length, 0);
 const setLabels = (sets) => { let n = 0; return sets.map((x) => (x.warmup ? 'W' : String(++n))); };
+const setText = (set) => `${fmtKg(set.kg)} × ${set.reps}${set.warmup ? ' <small class="muted">warm-up</small>' : ''}${set.failure ? ' <small class="fail-tag">to failure</small>' : ''}`;
+const PLATES = [1.25, 2.5, 5, 10, 15, 20];
 const setBadge = (label) => `<span class="set-n${label === 'W' ? ' warm' : ''}">${label}</span>`;
 const volume = (s) => s.exercises.reduce((v, e) => v + e.sets.filter(isWork).reduce((x, set) => x + (set.kg || 0) * set.reps, 0), 0);
 
@@ -513,14 +515,20 @@ const VIEWS = {
       const labels = setLabels(ex.sets);
       const work = ex.sets.filter(isWork).length, warm = ex.sets.length - work;
       const sets = ex.sets.map((s, i) => `<li>${setBadge(labels[i])}
-        <span class="set-v">${fmtKg(s.kg)} × ${s.reps}${s.warmup ? ' <small class="muted">warm-up</small>' : ''}</span>
+        <span class="set-v">${setText(s)}</span>
         <button class="x" data-action="removeSet" data-id="${ex.id}" data-idx="${i}" aria-label="Delete set">✕</button></li>`).join('');
       const input = open ? `<div class="set-input">
           <div class="with-unit"><input id="kg-${ex.id}" inputmode="decimal" placeholder="0" value="${last ? esc(last.kg || '') : ''}" autocomplete="off"><span>kg</span></div>
           <span class="times">×</span>
           <div class="with-unit"><input id="reps-${ex.id}" inputmode="numeric" placeholder="0" value="${last ? esc(last.reps) : ''}" autocomplete="off"><span>reps</span></div>
+          <button class="fail-toggle" id="fail-${ex.id}" data-action="toggleFail" aria-pressed="false" aria-label="Set taken to failure">F</button>
+          <div class="plates" role="group" aria-label="Add plates to the weight">
+            ${PLATES.map((pl) => `<button class="plate p${String(pl).replace('.', '_')}" data-action="addPlate" data-id="${ex.id}" data-kg="${pl}" aria-label="Add ${pl} kg"><b>${pl}</b></button>`).join('')}
+            <button class="plate clear" data-action="clearKg" data-id="${ex.id}" aria-label="Clear weight">Clear</button>
+          </div>
+          <div class="plate-hint">Tap plates to add them to the kg total</div>
           <button class="warm-toggle" id="warm-${ex.id}" data-action="toggleWarm" aria-pressed="false">🔥 Warm-up set</button>
-          <button class="btn primary" data-action="addSet" data-id="${ex.id}">Add set ${work + 1}</button>
+          <button class="btn purple" data-action="addSet" data-id="${ex.id}">Add set ${work + 1}</button>
         </div>
         <div class="ex-foot"><button class="link danger small" data-action="removeEx" data-id="${ex.id}">Remove exercise</button></div>` : '';
       return `<div class="card ex ${open ? 'open' : ''}" id="ex-${ex.id}">
@@ -533,16 +541,20 @@ const VIEWS = {
     }).join('');
     return `${topBar('Weightlifting', '')}
       ${exHtml || '<div class="empty">No exercises yet. Add your first one.</div>'}
-      <button class="btn blue" data-action="go" data-to="groupPick">+ Add exercise</button>
-      <button class="btn primary big" data-action="finishWeights">Finish workout</button>
-      <button class="btn ghost" data-action="go" data-to="home">Back to home (workout stays open)</button>
-      <button class="link danger center" data-action="discard">Discard workout</button>
+      <div class="btn-pair">
+        <button class="btn blue" data-action="go" data-to="groupPick">+ Add exercise</button>
+        <button class="btn red" data-action="finishWeights">Finish workout</button>
+      </div>
+      <div class="btn-pair spaced">
+        <button class="btn ghost" data-action="go" data-to="home">Back to home</button>
+        <button class="btn ghost danger-outline" data-action="discard">Discard workout</button>
+      </div>
       ${a.exercises.length ? `<h2>Last time</h2>${a.exercises.map((ex) => {
         const last = lastTime(ex.name);
         if (!last) return `<div class="card detail-ex"><h3>${esc(ex.name)}</h3><div class="muted small">First time. Nothing logged before.</div></div>`;
         const l = setLabels(last.ex.sets);
         return `<div class="card detail-ex"><h3>${esc(ex.name)}</h3><div class="muted small">Last time: ${esc(fmtDate(dayOf(last.session)))}</div>
-          <ol class="sets">${last.ex.sets.map((set, i) => `<li>${setBadge(l[i])}<span class="set-v">${fmtKg(set.kg)} × ${set.reps}${set.warmup ? ' <small class="muted">warm-up</small>' : ''}</span></li>`).join('')}</ol></div>`;
+          <ol class="sets">${last.ex.sets.map((set, i) => `<li>${setBadge(l[i])}<span class="set-v">${setText(set)}</span></li>`).join('')}</ol></div>`;
       }).join('')}` : ''}`;
   },
 
@@ -610,7 +622,7 @@ const VIEWS = {
           <div class="stat"><span>Volume</span><b>${fmtNum(volume(s))} kg</b></div>
         </div>
         ${s.exercises.map((e) => `<div class="card detail-ex"><h3>${esc(e.name)}</h3><div class="muted small">${esc(e.group)}</div>
-          <ol class="sets">${(() => { const l = setLabels(e.sets); return e.sets.map((set, i) => `<li>${setBadge(l[i])}<span class="set-v">${fmtKg(set.kg)} × ${set.reps}${set.warmup ? ' <small class="muted">warm-up</small>' : ''}</span></li>`).join(''); })()}</ol></div>`).join('')}`;
+          <ol class="sets">${(() => { const l = setLabels(e.sets); return e.sets.map((set, i) => `<li>${setBadge(l[i])}<span class="set-v">${setText(set)}</span></li>`).join(''); })()}</ol></div>`).join('')}`;
     }
     return `${topBar(sessionTitle(s), 'data-action="go" data-to="history"')}
       <p class="hint">📅 ${esc(fmtDate(dayOf(s)))}</p>
@@ -703,7 +715,7 @@ function buildCsv() {
     if (text && /^[=+\-@\t\r]/.test(t)) t = "'" + t; // stop spreadsheets from running text as a formula
     return /[",\n\r]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
   };
-  const head = ['Date', 'Person', 'Type', 'Exercise / Activity', 'Muscle group', 'Set', 'Set type', 'Weight (kg)', 'Reps',
+  const head = ['Date', 'Person', 'Type', 'Exercise / Activity', 'Muscle group', 'Set', 'Set type', 'Weight (kg)', 'Reps', 'To failure',
     'Distance (km)', 'Start', 'End', 'Duration (min)', 'Intensity', 'Machine settings', 'Note'];
   const rows = [];
   const sessions = [...data.sessions].sort((a, b) => (dayOf(a) - dayOf(b)) || (a.start < b.start ? -1 : 1));
@@ -713,12 +725,12 @@ function buildCsv() {
       const vals = s.settings || {};
       const machine = cardioMeta(s.activity).fields.filter((f) => vals[f.k] != null && vals[f.k] !== '')
         .map((f) => `${f.l} ${vals[f.k]} ${f.u}`.trim()).join('; ');
-      rows.push([date, profileName(), 'Cardio', s.activity, '', '', '', '', '', hasDist(s) ? s.distanceKm : '',
-        fmtTime(s.start), fmtTime(s.end), Math.round(durMs(s) / 60000), s.intensity, machine, s.note || ''].map((v, i) => cell(v, [1, 3, 13, 14, 15].includes(i))));
+      rows.push([date, profileName(), 'Cardio', s.activity, '', '', '', '', '', '', hasDist(s) ? s.distanceKm : '',
+        fmtTime(s.start), fmtTime(s.end), Math.round(durMs(s) / 60000), s.intensity, machine, s.note || ''].map((v, i) => cell(v, [1, 3, 14, 15, 16].includes(i))));
     } else {
       for (const e of s.exercises) {
         e.sets.forEach((set, i) => rows.push([date, profileName(), 'Weightlifting', e.name, e.group, i + 1,
-          set.warmup ? 'Warm-up' : 'Working', set.kg, set.reps, '', '', '', '', '', '', ''].map((v, j) => cell(v, [1, 3, 4].includes(j)))));
+          set.warmup ? 'Warm-up' : 'Working', set.kg, set.reps, set.failure ? 'Yes' : 'No', '', '', '', '', '', '', ''].map((v, j) => cell(v, [1, 3, 4].includes(j)))));
       }
     }
   }
@@ -839,6 +851,17 @@ const ACTIONS = {
   },
 
   /* Weightlifting */
+  toggleFail(d, el) {
+    const on = el.classList.toggle('on');
+    el.setAttribute('aria-pressed', String(on));
+  },
+  addPlate(d) {
+    const input = document.getElementById('kg-' + d.id);
+    const cur = parseNum(input.value);
+    const total = Math.round(((cur >= 0 ? cur : 0) + Number(d.kg)) * 100) / 100;
+    input.value = String(total);
+  },
+  clearKg(d) { document.getElementById('kg-' + d.id).value = ''; },
   toggleWarm(d, el) {
     const on = el.classList.toggle('on');
     el.setAttribute('aria-pressed', String(on));
@@ -873,12 +896,13 @@ const ACTIONS = {
     if (!(kg >= 0)) return toast('Weight must be a number');
     if (!(reps > 0)) return toast('Enter the reps');
     const warm = !!document.getElementById('warm-' + d.id)?.classList.contains('on');
+    const fail = !!document.getElementById('fail-' + d.id)?.classList.contains('on');
     const a = getActive();
     const ex = a.exercises.find((e) => e.id === d.id);
-    ex.sets.push({ kg, reps, ...(warm ? { warmup: true } : {}) });
+    ex.sets.push({ kg, reps, ...(warm ? { warmup: true } : {}), ...(fail ? { failure: true } : {}) });
     setActive(a);
     render();
-    toast(`${warm ? 'Warm-up' : 'Set ' + ex.sets.filter(isWork).length}: ${fmtKg(kg)} × ${reps}`);
+    toast(`${warm ? 'Warm-up' : 'Set ' + ex.sets.filter(isWork).length}: ${fmtKg(kg)} × ${reps}${fail ? ' (failure)' : ''}`);
   },
   removeSet(d) {
     if (!confirm('Delete this set?')) return;
